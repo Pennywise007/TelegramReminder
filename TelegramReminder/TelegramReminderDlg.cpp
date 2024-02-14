@@ -16,6 +16,7 @@ CTelegramReminderDlg::CTelegramReminderDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_TELEGRAMREMINDER_DIALOG, pParent)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+	ext::core::Init();
 }
 
 void CTelegramReminderDlg::DoDataExchange(CDataExchange* pDX)
@@ -50,12 +51,19 @@ BOOL CTelegramReminderDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// Set small icon
 
 	m_editInterval.UsePositiveDigitsOnly();
+	m_editInterval.SetUseOnlyIntegersValue();
 
 	m_editToken.SetWindowTextW(m_settings.token.c_str());
 	m_editPassword.SetWindowTextW(m_settings.password.c_str());
+	m_message.SetWindowTextW(m_settings.message.c_str());
 
+	m_timeNotificationsStart.SetFormat(L"HH:mm");
 	m_timeNotificationsStart.SetTime(&m_settings.start);
+	m_timeNotificationsEnd.SetFormat(L"HH:mm");
 	m_timeNotificationsEnd.SetTime(&m_settings.end);
+
+	m_checkWeekdays.SetCheck(m_settings.weekdays ? 1 : 0);
+	m_checkWeekends.SetCheck(m_settings.weekends ? 1 : 0);
 
 	m_editInterval.SetWindowTextW(std::to_wstring(m_settings.interval).c_str());
 
@@ -119,6 +127,8 @@ void CTelegramReminderDlg::StoreParameters()
 	m_settings.token = str;
 	m_editPassword.GetWindowTextW(str);
 	m_settings.password = str;
+	m_message.GetWindowTextW(str);
+	m_settings.message = str;
 
 	m_timeNotificationsStart.GetTime(m_settings.start);
 	m_timeNotificationsEnd.GetTime(m_settings.end);
@@ -128,9 +138,6 @@ void CTelegramReminderDlg::StoreParameters()
 
 	m_editInterval.GetWindowTextW(str);
 	m_settings.interval = std::stoi(str.GetString());
-
-	m_message.GetWindowTextW(str);
-	m_settings.message = str;
 
 	m_settings.Store();
 }
@@ -160,70 +167,67 @@ void CTelegramReminderDlg::SendMessageToUsers()
 	});
 }
 
-void CTelegramReminderDlg::OnBnClickedButtonRun()
+void CTelegramReminderDlg::EnableControlsOnReminder(bool start)
 {
-	const auto onExecute = [&](bool start)
-	{
-			//ext::InvokeMethodAsync([&, start]()
-			//	{
-
-		const std::vector<CWnd*> activeControls {
-			&m_editPassword,
-			&m_editToken,
-			&m_timeNotificationsStart,
-			&m_timeNotificationsEnd,
-			&m_checkWeekdays,
-			&m_checkWeekends,
-			&m_editInterval,
-		};
-
-		for (auto ctrl : activeControls)
-		{
-			ctrl->EnableWindow(!start);
-		}
-
-		m_buttonRun.SetWindowTextW(start ?
-			L"Stop waiting for users" :
-			L"Run bot and wait for users");
+	const std::vector<CWnd*> activeControls{
+		&m_editPassword,
+		&m_editToken,
+		&m_timeNotificationsStart,
+		&m_timeNotificationsEnd,
+		&m_checkWeekdays,
+		&m_checkWeekends,
+		&m_editInterval,
 	};
 
+	for (auto ctrl : activeControls)
+	{
+		ctrl->EnableWindow(!start);
+	}
+
+	m_buttonRun.SetWindowTextW(start ?
+		L"Stop reminder" :
+		L"Run reminder");
+}
+
+bool CTelegramReminderDlg::ValidateParameters()
+{
+	CTime startTime, endTime;
+	m_timeNotificationsStart.GetTime(startTime);
+	m_timeNotificationsEnd.GetTime(endTime);
+
+	if (startTime == endTime)
+	{
+		MessageBoxW(L"Start time equal to the end time", L"Invalid params");
+		return false;
+	}
+
+	if (startTime > endTime)
+	{
+		const auto res = MessageBoxW(L"Start time is after end time, do you want to swap them?", L"Invalid params", MB_OKCANCEL);
+		if (res != IDOK)
+			return false;
+
+		m_timeNotificationsStart.SetTime(&endTime);
+		m_timeNotificationsEnd.SetTime(&startTime);
+		std::swap(startTime, endTime);
+	}
+
+	return true;
+}
+
+void CTelegramReminderDlg::OnBnClickedButtonRun()
+{
 	if (m_reminderThread.joinable())
 	{
 		StopThread();
-		onExecute(false);
+		EnableControlsOnReminder(false);
 		return;
 	}
 
-	const auto validateParams = [&]() {
-		CTime startTime, endTime;
-		m_timeNotificationsStart.GetTime(startTime);
-		m_timeNotificationsEnd.GetTime(endTime);
+	if (!ValidateParameters())
+		return;
 
-		if (startTime == endTime)
-		{
-			MessageBoxW(L"Start time equal to the end time", L"Invalid params");
-			return false;
-		}
-
-		if (startTime > endTime)
-		{
-			const auto res = MessageBoxW(L"Start time is after end time, do you want to swap them?", L"Invalid params", MB_OKCANCEL);
-			if (res != MB_OK)
-				return false;
-
-			m_timeNotificationsStart.SetTime(&endTime);
-			m_timeNotificationsEnd.SetTime(&startTime);
-			std::swap(startTime, endTime);
-		}
-
-		return true;
-	};
-
-	if (!validateParams())
-		return
-
-	onExecute(true);
-
+	EnableControlsOnReminder(true);
 	StoreParameters();
 
 	const auto onMessage = [pass = m_settings.password, telegramThread = m_telegramThread]
@@ -236,24 +240,23 @@ void CTelegramReminderDlg::OnBnClickedButtonRun()
 				return;
 			}
 
-			ext::InvokeMethodAsync([telegramThread, pUser = commandMessage->from]()
+			ext::InvokeMethodAsync([telegramThread, pUser = commandMessage->from, chatId = commandMessage->chat->id]()
 				{
 					auto& settings = ext::get_service<Settings>();
 
-					auto& users = settings.registeredUsers;
-					const bool exist = std::any_of(users.begin(), users.end(),
+					const bool exist = std::any_of(settings.registeredUsers.begin(), settings.registeredUsers.end(),
 						[&](const Settings::User& user)
 						{
 							return user.id == pUser->id;
 						});
 					if (exist)
-						telegramThread->SendMessage(pUser->id, L"User already registered");
+						telegramThread->SendMessage(chatId, L"User already registered");
 					else
 					{
-						users.emplace_back(pUser);
+						settings.registeredUsers.emplace_back(pUser);
 						settings.Store();
 
-						telegramThread->SendMessage(pUser->id, L"User registered");
+						telegramThread->SendMessage(chatId, L"User registered");
 					}
 				});
 		};
@@ -264,73 +267,148 @@ void CTelegramReminderDlg::OnBnClickedButtonRun()
 
 	std::list<ITelegramThread::CommandInfo> commands{
 		{
-			L"ping", L"Verify that reminder is working", [thread = m_telegramThread](const TgBot::Message::Ptr message) {
-				thread->SendMessage(message->from->id, L"Reminder is online");
+			L"ping", L"Verify that reminder is working", [&](const TgBot::Message::Ptr message) {
+				if (m_reminderThread.joinable())
+					m_telegramThread->SendMessage(message->chat->id, L"Reminder is online");
+				else
+					m_telegramThread->SendMessage(message->chat->id, L"Reminder is paused");
 		}},
 		{
-			L"stop_reminder", L"Stop the reminder", [&](const TgBot::Message::Ptr message) {
-				if (m_reminderThread.joinable())
+			L"continue_reminder", L"Continue reminder work after pausing", [&](const TgBot::Message::Ptr message) {
+				ext::InvokeMethodAsync([&, userId = message->from->id, chatId = message->chat->id]()
 				{
-					ext::InvokeMethod([&]()
+					const bool userRegistered = std::any_of(m_settings.registeredUsers.begin(), m_settings.registeredUsers.end(),
+						[&](const Settings::User& user)
 						{
-							StopThread();
-							m_telegramThread->SendMessage(message->from->id, L"Reminder stopped");
-							onExecute(false);
+							return user.id == userId;
 						});
-				}
-		}},
+					if (!userRegistered)
+					{
+						m_telegramThread->SendMessage(chatId, L"User not registered");
+						return;
+					}
+					if (m_reminderThread.joinable())
+					{
+						m_telegramThread->SendMessage(chatId, L"Reminder is already working");
+						return;
+					}
+								
+					m_reminderThread.run(&CTelegramReminderDlg::ThreadFunction, this);
+					EnableControlsOnReminder(false);
+					m_telegramThread->SendMessage(chatId, L"Reminder started");
+				});
+			}
+		},
+		{
+			L"pause_reminder", L"Pause the reminder, to continue use /continue_reminder", [&](const TgBot::Message::Ptr message) {
+				ext::InvokeMethodAsync([&, userId = message->from->id, chatId = message->chat->id]()
+				{
+					const bool userRegistered = std::any_of(m_settings.registeredUsers.begin(), m_settings.registeredUsers.end(),
+						[&](const Settings::User& user)
+						{
+							return user.id == userId;
+						});
+					if (!userRegistered)
+					{
+						m_telegramThread->SendMessage(chatId, L"User not registered");
+						return;
+					}
+					if (!m_reminderThread.joinable())
+					{
+						m_telegramThread->SendMessage(chatId, L"Reminder is not running");
+						return;
+					}
+
+					m_reminderThread.interrupt_and_join();
+					m_telegramThread->SendMessage(chatId, L"Reminder paused");
+					EnableControlsOnReminder(false);
+					m_buttonRun.SetWindowTextW(L"Reminder paused, stop reminder");
+				});
+			}
+		},
 		{
 			L"unregister", L"Unregister from notifications", [&](const TgBot::Message::Ptr message) {
-				ext::InvokeMethod([&]() {
+				ext::InvokeMethodAsync([&, userId = message->from->id, chatId = message->chat->id]() {
 					auto it = std::find_if(m_settings.registeredUsers.begin(), m_settings.registeredUsers.end(),
 						[&](const Settings::User& user)
 						{
-							return user.id == message->from->id;
+							return user.id == userId;
 						});
 					if (it == m_settings.registeredUsers.end())
 					{
-						m_telegramThread->SendMessage(message->from->id, L"User not registered");
+						m_telegramThread->SendMessage(chatId, L"User not registered");
 						return;
 					}
 
 					m_settings.registeredUsers.erase(it);
 					m_settings.Store();
-					m_telegramThread->SendMessage(message->from->id, L"User unregistered");
+					m_telegramThread->SendMessage(chatId, L"User unregistered");
 				});
 		}},
 	};
 
-	m_telegramThread->StartTelegramThread(commands, onUnknownCommand, onMessage);
-	m_reminderThread.run([&](CTime startTime, CTime endTime, int intervalInMinutes) {
-		const auto wait = [intervalInMinutes]() {
-			try
-			{
-				ext::this_thread::interruptible_sleep_for(std::chrono::minutes(intervalInMinutes));
-				return true;
-			}
-			catch (ext::thread::thread_interrupted)
-			{
-				return false;
-			}
-		};
+	m_telegramThread = CreateTelegramThread(std::narrow(m_settings.token).c_str(),
+		[errorDialog = m_errorDialog](const std::wstring& error)
+		{
+			ext::InvokeMethodAsync([error, errorDialog]()
+									{
+										errorDialog->ShowWindow(error);
+									});
+		});
+	try
+	{
+		m_telegramThread->StartTelegramThread(commands, onUnknownCommand, onMessage);
+	}
+	catch (const std::exception& e)
+	{
+		MessageBoxA(m_hWnd, e.what(), "Failed to start telegram bot", MB_ICONERROR);
+		m_telegramThread->StopTelegramThread();
+		EnableControlsOnReminder(false);
+		return;
+	}
 
-		const auto startHour(startTime.GetHour()), startMinute(startTime.GetMinute()), endHour(endTime.GetHour()), endMinute(endTime.GetMinute());
-		do {
-			const auto curTime = CTime::GetCurrentTime();
+	m_reminderThread.run(&CTelegramReminderDlg::ThreadFunction, this);
+}
 
-			const auto curHour = curTime.GetHour();
-			const auto curMinute = curTime.GetMinute();
-			if (curHour < startHour && curHour > endHour)
-				continue;
+void CTelegramReminderDlg::ThreadFunction()
+{
+	CTime startTime, endTime;
+	int intervalInMinutes;
 
-			if (curHour == startHour && curMinute < startMinute)
-				continue;
-			if (curHour == endHour && curMinute > endMinute)
-				continue;
+	ext::InvokeMethod([&]() {
+		startTime = m_settings.start;
+		endTime = m_settings.end;
+		intervalInMinutes = m_settings.interval;
+	});
 
-			SendMessageToUsers();
-		} while (wait());
-	}, m_settings.start, m_settings.end, m_settings.interval);
+	const auto wait = [intervalInMinutes]() {
+		try
+		{
+			ext::this_thread::interruptible_sleep_for(std::chrono::minutes(intervalInMinutes));
+			return true;
+		}
+		catch (ext::thread::thread_interrupted)
+		{
+			return false;
+		}
+	};
+
+	const auto startHour(startTime.GetHour()), startMinute(startTime.GetMinute()), endHour(endTime.GetHour()), endMinute(endTime.GetMinute());
+	do {
+		const auto curTime = CTime::GetCurrentTime();
+
+		const auto curHour = curTime.GetHour();
+		const auto curMinute = curTime.GetMinute();
+		if (curHour < startHour || curHour > endHour)
+			continue;
+
+		if (curHour == startHour && curMinute < startMinute)
+			continue;
+		if (curHour == endHour && curMinute > endMinute)
+			continue;
+
+		SendMessageToUsers();
+	} while (wait());
 }
 
 void CTelegramReminderDlg::OnBnClickedButtonSendMessage()

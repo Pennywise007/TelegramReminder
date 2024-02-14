@@ -49,6 +49,9 @@ private:
 	void StoreParameters();
 	void StopThread();
 	void SendMessageToUsers();
+	void EnableControlsOnReminder(bool start);
+	bool ValidateParameters();
+	void ThreadFunction();
 
 private:
 	Settings& m_settings = ext::get_service<Settings>();

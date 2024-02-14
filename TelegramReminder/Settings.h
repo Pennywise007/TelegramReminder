@@ -69,10 +69,10 @@ public:
     DECLARE_SERIALIZABLE_FIELD(std::wstring, token);
     DECLARE_SERIALIZABLE_FIELD(std::wstring, password);
     DECLARE_SERIALIZABLE_FIELD(std::wstring, message);
-    DECLARE_SERIALIZABLE_FIELD(CTime, start);
-    DECLARE_SERIALIZABLE_FIELD(CTime, end);
-    DECLARE_SERIALIZABLE_FIELD(bool, weekdays);
-    DECLARE_SERIALIZABLE_FIELD(bool, weekends);
-    DECLARE_SERIALIZABLE_FIELD(int, interval);
+    DECLARE_SERIALIZABLE_FIELD(CTime, start, CTime(1970, 1, 1, 10, 0, 0));
+    DECLARE_SERIALIZABLE_FIELD(CTime, end, CTime(1970, 1, 1, 20, 0, 0));
+    DECLARE_SERIALIZABLE_FIELD(bool, weekdays, true);
+    DECLARE_SERIALIZABLE_FIELD(bool, weekends, true);
+    DECLARE_SERIALIZABLE_FIELD(int, interval, 15);
     DECLARE_SERIALIZABLE_FIELD(std::list<User>, registeredUsers);
 };
