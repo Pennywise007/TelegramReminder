@@ -374,19 +374,51 @@ void CTelegramReminderDlg::OnBnClickedButtonRun()
 
 void CTelegramReminderDlg::ThreadFunction()
 {
-	CTime startTime, endTime;
+	int startHour, startMinute, endHour, endMinute;
 	int intervalInMinutes;
+	bool workOnWeekdays, workOnWeekends;
 
 	ext::InvokeMethod([&]() {
-		startTime = m_settings.start;
-		endTime = m_settings.end;
+		startHour = m_settings.start.GetHour();
+		startMinute = m_settings.start.GetMinute();
+		endHour = m_settings.end.GetHour();
+		endMinute = m_settings.end.GetMinute();
 		intervalInMinutes = m_settings.interval;
+		workOnWeekdays = m_settings.weekdays;
+		workOnWeekends = m_settings.weekends;
 	});
 
-	const auto wait = [intervalInMinutes]() {
+	using namespace std::chrono;
+	const auto setHourAndMinute = [](system_clock::time_point& tp, int hour, int minute) {
+		std::time_t time = system_clock::to_time_t(tp);
+		std::tm timeStruct;
+		localtime_s(&timeStruct, &time);
+		timeStruct.tm_hour = hour;
+		timeStruct.tm_min = minute;
+		timeStruct.tm_sec = 0;
+		tp = system_clock::from_time_t(std::mktime(&timeStruct));
+	};
+	
+	auto startTime = system_clock::now(), endTime = startTime;
+	setHourAndMinute(startTime, startHour, startMinute);
+	setHourAndMinute(endTime, endHour, endMinute);
+
+	bool waitForStartTime = false;
+
+	const auto wait = [&]() {
 		try
 		{
-			ext::this_thread::interruptible_sleep_for(std::chrono::minutes(intervalInMinutes));
+			if (waitForStartTime)
+				ext::this_thread::interruptible_sleep_until(startTime);
+			else
+			{
+				const auto minutesSinceStart = std::chrono::duration_cast<std::chrono::minutes>(system_clock::now() - startTime).count();
+				const int possibleIterations = minutesSinceStart / intervalInMinutes;
+
+				const auto nextMessageTime = startTime + std::chrono::minutes(intervalInMinutes * (possibleIterations + 1));
+
+				ext::this_thread::interruptible_sleep_until(nextMessageTime);
+			}
 			return true;
 		}
 		catch (ext::thread::thread_interrupted)
@@ -395,22 +427,37 @@ void CTelegramReminderDlg::ThreadFunction()
 		}
 	};
 
-	const auto startHour(startTime.GetHour()), startMinute(startTime.GetMinute()), endHour(endTime.GetHour()), endMinute(endTime.GetMinute());
-	do {
-		const auto curTime = CTime::GetCurrentTime();
+	while (wait()) {
+		waitForStartTime = false;
 
-		const auto curHour = curTime.GetHour();
-		const auto curMinute = curTime.GetMinute();
-		if (curHour < startHour || curHour > endHour)
-			continue;
+		const auto curTime = system_clock::now();
 
-		if (curHour == startHour && curMinute < startMinute)
+		if (curTime < startTime)
+		{
+			waitForStartTime = true;
 			continue;
-		if (curHour == endHour && curMinute > endMinute)
-			continue;
+		}
+		else
+		{
+			std::time_t time = system_clock::to_time_t(curTime);
+			std::tm timeStruct;
+			localtime_s(&timeStruct, &time);
+
+			const bool notWorkingDuringWeekday = !workOnWeekdays && (timeStruct.tm_wday > 0 || timeStruct.tm_wday < 6);
+			const bool notWorkingDuringWeekend = !workOnWeekdays && (timeStruct.tm_wday == 0 || timeStruct.tm_wday == 6);
+
+			if (curTime > endTime || notWorkingDuringWeekday || notWorkingDuringWeekend)
+			{
+				startTime += std::chrono::hours(24);
+				endTime += std::chrono::hours(24);
+
+				waitForStartTime = true;
+				continue;
+			}
+		}
 
 		SendMessageToUsers();
-	} while (wait());
+	}
 }
 
 void CTelegramReminderDlg::OnBnClickedButtonSendMessage()
