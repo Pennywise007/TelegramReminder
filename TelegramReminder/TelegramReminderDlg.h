@@ -29,6 +29,8 @@ public:
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV support
+	void OnOK() override;
+	void OnCancel() override;
 
 // Implementation
 protected:
@@ -37,7 +39,6 @@ protected:
 	DECLARE_MESSAGE_MAP()
 		
 	// Generated message map functions
-	virtual BOOL PreTranslateMessage(MSG* pMsg);
 	virtual BOOL OnInitDialog();
 	afx_msg HCURSOR OnQueryDragIcon();
 	afx_msg void OnPaint();
@@ -70,4 +71,5 @@ public:
 	CButton m_checkWeekdays;
 	CButton m_checkWeekends;
 	CSpinEdit m_editInterval;
+	afx_msg void OnIdok();
 };

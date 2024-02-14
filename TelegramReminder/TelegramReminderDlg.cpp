@@ -118,6 +118,8 @@ void CTelegramReminderDlg::OnClose()
 
 	if (m_reminderThread.joinable())
 		StopThread();
+	
+	EndDialog(IDOK);
 }
 
 void CTelegramReminderDlg::StoreParameters()
@@ -419,21 +421,8 @@ void CTelegramReminderDlg::OnBnClickedButtonSendMessage()
 		L"Send message result", MB_OK);
 }
 
-BOOL CTelegramReminderDlg::PreTranslateMessage(MSG* pMsg)
-{
-	if (pMsg->message == WM_KEYDOWN)
-	{
-		switch (pMsg->wParam)
-		{
-		case VK_RETURN:
-			OnBnClickedButtonSendMessage();
-			return TRUE;
-		case VK_ESCAPE:
-			m_message.SetWindowTextW(L"");
-			return TRUE;
-		default:
-			break;
-		}
-	}
-	return CDialogEx::PreTranslateMessage(pMsg);
-}
+void CTelegramReminderDlg::OnOK()
+{}
+
+void CTelegramReminderDlg::OnCancel()
+{}
