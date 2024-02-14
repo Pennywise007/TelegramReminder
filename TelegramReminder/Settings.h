@@ -1,5 +1,7 @@
 #pragma once
 
+#include "atltime.h"
+
 #include <ext/core/singleton.h>
 #include <ext/std/filesystem.h>
 #include <ext/serialization/iserializable.h>
@@ -66,5 +68,11 @@ public:
 
     DECLARE_SERIALIZABLE_FIELD(std::wstring, token);
     DECLARE_SERIALIZABLE_FIELD(std::wstring, password);
+    DECLARE_SERIALIZABLE_FIELD(std::wstring, message);
+    DECLARE_SERIALIZABLE_FIELD(CTime, start);
+    DECLARE_SERIALIZABLE_FIELD(CTime, end);
+    DECLARE_SERIALIZABLE_FIELD(bool, weekdays);
+    DECLARE_SERIALIZABLE_FIELD(bool, weekends);
+    DECLARE_SERIALIZABLE_FIELD(int, interval);
     DECLARE_SERIALIZABLE_FIELD(std::list<User>, registeredUsers);
 };

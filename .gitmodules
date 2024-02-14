@@ -4,3 +4,6 @@
 [submodule "TelegramReminder/ext"]
 	path = TelegramReminder/ext
 	url = https://github.com/Pennywise007/ext
+[submodule "TelegramReminder/Controls"]
+	path = TelegramReminder/Controls
+	url = https://github.com/Pennywise007/Controls

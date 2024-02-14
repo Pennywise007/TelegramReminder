@@ -10,6 +10,11 @@
 
 #include "TelegramThread.h"
 #include "ErrorDialog.h"
+
+#include <Controls/Edit/SpinEdit/SpinEdit.h>
+
+#include <ext/thread/thread.h>
+
 // CTelegramReminderDlg dialog
 class CTelegramReminderDlg : public CDialogEx
 {
@@ -43,11 +48,12 @@ protected:
 private:
 	void StoreParameters();
 	void StopThread();
-	void SendMessageToUsers(const CString& text);
+	void SendMessageToUsers();
 
 private:
 	Settings& m_settings = ext::get_service<Settings>();
 	ITelegramThreadPtr m_telegramThread;
+	ext::thread m_reminderThread;
 
 public:
 	CEdit m_editToken;
@@ -56,4 +62,9 @@ public:
 	CButton m_buttonRun;
 	
 	std::shared_ptr<ErrorDialog> m_errorDialog;
+	CDateTimeCtrl m_timeNotificationsStart;
+	CDateTimeCtrl m_timeNotificationsEnd;
+	CButton m_checkWeekdays;
+	CButton m_checkWeekends;
+	CSpinEdit m_editInterval;
 };

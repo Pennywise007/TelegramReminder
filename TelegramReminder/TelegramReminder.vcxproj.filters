@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Controls">
+      <UniqueIdentifier>{576e4e42-13d2-43a9-9042-a1d057a48fd3}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="TelegramReminder.h">
@@ -45,6 +48,15 @@
     <ClInclude Include="ErrorDialog.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Controls\Edit\SpinEdit\SpinEdit.h">
+      <Filter>Controls</Filter>
+    </ClInclude>
+    <ClInclude Include="Controls\Edit\CEditBase\CEditBase.h">
+      <Filter>Controls</Filter>
+    </ClInclude>
+    <ClInclude Include="Controls\SpinButton\SpinButton.h">
+      <Filter>Controls</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="TelegramReminder.cpp">
@@ -61,6 +73,15 @@
     </ClCompile>
     <ClCompile Include="ErrorDialog.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Controls\Edit\SpinEdit\SpinEdit.cpp">
+      <Filter>Controls</Filter>
+    </ClCompile>
+    <ClCompile Include="Controls\Edit\CEditBase\CEditBase.cpp">
+      <Filter>Controls</Filter>
+    </ClCompile>
+    <ClCompile Include="Controls\SpinButton\SpinButton.cpp">
+      <Filter>Controls</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
