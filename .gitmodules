@@ -1,0 +1,6 @@
+[submodule "TelegramDLL"]
+	path = TelegramDLL
+	url = https://github.com/Pennywise007/TelegramDLL
+[submodule "TelegramReminder/ext"]
+	path = TelegramReminder/ext
+	url = https://github.com/Pennywise007/ext
