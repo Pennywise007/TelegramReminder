@@ -5,6 +5,7 @@
 #include "afxdialogex.h"
 #include "TelegramThread.h"
 
+#include <ext/core/tracer.h>
 #include <ext/thread/invoker.h>
 
 #ifdef _DEBUG
@@ -16,7 +17,7 @@ CTelegramReminderDlg::CTelegramReminderDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_TELEGRAMREMINDER_DIALOG, pParent)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
-	ext::core::Init();
+	ext::get_tracer().Enable();
 }
 
 void CTelegramReminderDlg::DoDataExchange(CDataExchange* pDX)
@@ -403,22 +404,26 @@ void CTelegramReminderDlg::ThreadFunction()
 	setHourAndMinute(startTime, startHour, startMinute);
 	setHourAndMinute(endTime, endHour, endMinute);
 
-	bool waitForStartTime = false;
+	bool waitForStartTime = system_clock::now() < startTime;
 
 	const auto wait = [&]() {
+		const auto timeToString = [](const system_clock::time_point& tp) {
+			const CTime t(system_clock::to_time_t(tp));
+			return t.Format("%F %T");
+		};
 		try
 		{
-			if (waitForStartTime)
-				ext::this_thread::interruptible_sleep_until(startTime);
-			else
+			auto waitUntil = startTime;
+			if (!waitForStartTime)
 			{
 				const auto minutesSinceStart = std::chrono::duration_cast<std::chrono::minutes>(system_clock::now() - startTime).count();
 				const int possibleIterations = minutesSinceStart / intervalInMinutes;
 
-				const auto nextMessageTime = startTime + std::chrono::minutes(intervalInMinutes * (possibleIterations + 1));
-
-				ext::this_thread::interruptible_sleep_until(nextMessageTime);
+				waitUntil = startTime + std::chrono::minutes(intervalInMinutes * (possibleIterations + 1));
 			}
+
+			EXT_TRACE() << "Now is " << timeToString(system_clock::now()) << ", wait until " << timeToString(waitUntil);
+			ext::this_thread::interruptible_sleep_until(waitUntil);
 			return true;
 		}
 		catch (ext::thread::thread_interrupted)
@@ -442,9 +447,10 @@ void CTelegramReminderDlg::ThreadFunction()
 			std::time_t time = system_clock::to_time_t(curTime);
 			std::tm timeStruct;
 			localtime_s(&timeStruct, &time);
+			const bool todayWeekend = timeStruct.tm_wday == 0 || timeStruct.tm_wday == 6;
 
-			const bool notWorkingDuringWeekday = !workOnWeekdays && (timeStruct.tm_wday > 0 || timeStruct.tm_wday < 6);
-			const bool notWorkingDuringWeekend = !workOnWeekdays && (timeStruct.tm_wday == 0 || timeStruct.tm_wday == 6);
+			const bool notWorkingDuringWeekday = !workOnWeekdays && !todayWeekend;
+			const bool notWorkingDuringWeekend = !workOnWeekends && todayWeekend;
 
 			if (curTime > endTime || notWorkingDuringWeekday || notWorkingDuringWeekend)
 			{
